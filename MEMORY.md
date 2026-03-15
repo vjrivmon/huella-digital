@@ -158,7 +158,13 @@ Vicente está estudiando arquitecturas multiagente (libro: "Building Application
 - `fetch('data:...')` no funciona en Safari iOS → usar `atob()` directo
 - Twitter bloquea CORS con Sec-Fetch-Mode:cors → proxy server-side necesario
 - fxtwitter API (`api.fxtwitter.com/status/{id}`) devuelve video URLs con CORS abierto
-- Proxy en servidor: `/tmp/video-proxy.mjs` en puerto 3099, tunnelado con serveo.net
+- TikTok: tikwm API (`www.tikwm.com/api/?url=`) devuelve video URLs
+- Proxy: `/tmp/video-proxy.mjs` puerto 3099 + systemd `encesa-proxy` + `encesa-tunnel`
+- URL fija tunnel: `https://encesa-fallas.loca.lt` (loca.lt cierra cada ~15min, systemd reinicia)
+- URL dinámica en `proxy-config.json` en gh-pages (no rebuild al cambiar)
+- iOS OOM: nunca renderizar >50 cards de golpe ni hacer 703 IndexedDB writes al startup
+- pullFromSupabase NO en startup (OOM) — solo manual vía botón "Actualizar desde nube"
+- Fórmula completitud Encesa: fotos(50%) + valoración(35%) + notas(15%)
 
 ## Lecciones aprendidas
 - Whisper medium (1.5GB) causa OOM en servidor 7.6GB — usar small
