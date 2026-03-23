@@ -1,0 +1,90 @@
+@startuml diagrama-as-is-v2
+title Sistema ACTUAL Lista de Espera Quirurgica -- AS-IS
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam backgroundColor #FEFEFE
+skinparam participant {
+    BackgroundColor #EEF2FF
+    BorderColor #4A6FA5
+}
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #F9A825
+}
+skinparam actor {
+    BackgroundColor #E8F5E9
+    BorderColor #388E3C
+}
+
+actor "Medico" as medico
+actor "Tecnico\nDocumentacion" as tecnico
+actor "Administrativo" as admin
+actor "Paciente" as paciente
+actor "Anestesista" as anestesista
+
+participant "LEQ\n(Intranet Hospital)" as leq
+participant "CodeClinic 3M\n(Codificacion CIE-10)" as cc
+participant "RCLE\n(Conselleria)" as rcle
+participant "Agenda\nAnalitica" as aga
+participant "Agenda\nPreoperatorio" as agp
+participant "Agenda VPA\n(Preanestesia)" as agvpa
+
+== 1. Alta en Lista de Espera Quirurgica ==
+
+medico -> leq : Introduce n. historia del paciente
+medico -> leq : Cumplimenta criterios de inclusion\nPrioridad (0-N) + Complejidad
+medico -> leq : Selecciona pruebas preoperatorias\n(por defecto segun complejidad)
+
+note over leq : El sistema va por IP interna\n(no expuesto al exterior)
+
+== 2. Codificacion Diagnostica (mismo dia) ==
+
+leq -> cc : Transfiere diagnostico y procedimiento\nen lenguaje libre del medico
+cc -> tecnico : Notificacion de codificacion pendiente
+tecnico -> cc : Codifica en CIE-10\n(normaliza lenguaje libre)
+
+note over tecnico, cc : Unidad de Documentacion Clinica\nde Admision
+
+== 3. Registro en RCLE ==
+
+cc -> rcle : Envia registro codificado
+rcle -> rcle : Asigna numero RCLE\nEstado inicial: ACTIVO
+
+note over rcle #FFE0B2 : Estados: ACTIVO > PASIVO > PROGRAMADO\n\nPrioridad 0 (URGENTE): salta directo a VPA\nSin codificacion previa ni pasos intermedios
+
+== 4. Proceso 100% MANUAL de Administrativas ==
+
+admin -> rcle : Consulta lista de pacientes ACTIVOS
+
+note over admin #FFCDD2 : CUELLO DE BOTELLA\nProceso totalmente manual\nBusqueda en papel y pantalla
+
+admin -> aga : Busca hueco disponible en Agenda Analitica
+admin -> agp : Busca hueco disponible en Agenda Preoperatorio
+admin -> agvpa : Busca hueco disponible en Agenda VPA\n(requiere Anestesista)
+
+note over admin, agvpa #FFCDD2 : Intento de cuadrar 3 citas el MISMO DIA\nCriterios manuales: proximidad geografica,\nsituacion laboral, mayores de edad\nSin herramienta de apoyo automatico
+
+admin -> admin : Introduce historial medico\nuno por uno manualmente\nen cada agenda
+
+== 5. Contacto Telefonico con el Paciente ==
+
+admin -> paciente : Llama por telefono para\ncomunicar fecha de cita
+
+alt Paciente CONFIRMA la cita
+    paciente -> admin : CONFIRMA
+    admin -> rcle : Bloquea cita en el sistema
+    anestesista -> paciente : Realiza Visita Preanestesica (VPA)
+    medico -> rcle : Emite parte quirurgico
+    rcle -> rcle : Estado: PROGRAMADO
+
+else Paciente CANCELA la cita
+    paciente -> admin : CANCELA
+    note over admin, rcle #FFCDD2 : Sin proceso definido de replanificacion\nReinicia desde cero manualmente
+    admin -> rcle : Paciente regresa a estado ACTIVO
+
+else Paciente NO localizable
+    note over admin #FFCDD2 : Multiples intentos telefonicos\nSin sistema de recordatorio automatico
+end
+
+@enduml

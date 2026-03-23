@@ -1,0 +1,120 @@
+@startuml diagrama-to-be-v2
+title Propuesta AGI-COOP -- Arquitectura Hexagonal como Servicio (TO-BE)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam backgroundColor #FEFEFE
+skinparam participant {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+}
+skinparam note {
+    BackgroundColor #F3E5F5
+    BorderColor #7B1FA2
+}
+skinparam actor {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+}
+skinparam box {
+    BorderColor #999
+    FontStyle bold
+}
+
+actor "Administrativo" as admin
+actor "Paciente" as paciente
+actor "Medico" as medico
+
+box "Sistemas Hospital (SIN MODIFICAR)" #FFF8E1
+    participant "LEQ\n(Intranet)" as leq
+    participant "CodeClinic 3M" as cc
+    participant "RCLE\n(Conselleria)" as rcle
+    participant "Agenda Analitica\nAgenda Preop\nAgenda VPA" as agendas
+end box
+
+box "AGI-COOP Service (Hexagonal)" #E8F5E9
+    participant "AgendaOptimizer\nAgent" as ao
+    participant "NotificationAgent" as na
+    participant "ReplanificationAgent" as ra
+end box
+
+participant "SMS Gateway\n/ Email SMTP" as canal
+participant "WhatsApp\nBusiness API" as wa
+
+== Fase 1: Exportacion de Datos (Input CSV/Excel) ==
+
+admin -> rcle : Exporta lista RCLE ACTIVOS\n(Excel/CSV manual)
+admin -> agendas : Exporta disponibilidad\nde las 3 agendas (CSV)
+
+note over admin #FFF9C4 : Integracion sin API:\nExportacion manual de ficheros\nCSV/Excel como fallback
+
+admin -> ao : Sube CSV lista de espera +\nCSV disponibilidad agendas
+
+== Fase 2: Optimizacion de Agenda (AgendaOptimizer) ==
+
+ao -> ao : Algoritmo de optimizacion:\n- Agrupa citas mismo dia\n- Criterios: prioridad clinica,\n  proximidad geografica,\n  situacion laboral, edad
+ao -> ao : Genera propuesta de asignacion\nde N pacientes
+
+note over ao #E8F5E9 : ARQUITECTURA HEXAGONAL\nPuerto de entrada: CSV/Excel\nLogica de dominio: algoritmo de asignacion\nPuerto de salida: JSON/CSV resultado
+
+ao -> admin : Output: JSON/CSV con propuesta\nde asignacion de citas
+
+admin -> admin : Valida propuesta
+admin -> agendas : Introduce citas validadas\nen los sistemas del hospital\n(proceso manual simplificado)
+
+== Fase 3: Notificacion al Paciente (NotificationAgent) ==
+
+admin -> na : Activa notificaciones\npara pacientes programados
+
+na -> canal : Envia recordatorio automatico\n(SMS + Email)
+na -> wa : Envia recordatorio por\nWhatsApp Business
+canal -> paciente : Recordatorio de cita
+wa -> paciente : Recordatorio de cita
+
+note over na #E8F5E9 : Output: SMS / Email / WhatsApp\nSin acceso a sistemas internos del hospital
+
+== Fase 4: Confirmacion o Cancelacion ==
+
+alt Paciente CONFIRMA
+    paciente -> na : Confirma cita (respuesta SMS/email/WhatsApp)
+    na -> na : Registra estado CONFIRMADO
+    na -> admin : Email automatico: "Paciente X confirmo cita"
+
+else Paciente CANCELA o NO RESPONDE
+    paciente -> ra : Cancela cita o no responde
+    ra -> ra : Inicia flujo de replanificacion
+    ra -> wa : Chatbot negocia nueva fecha\ncon el paciente
+    ra -> paciente : "Hola, hemos visto que no podras asistir.\nTe proponemos estas fechas..."
+
+    alt Paciente acepta nueva fecha
+        paciente -> ra : Selecciona nueva fecha
+        ra -> admin : Email automatico:\n"Nueva propuesta para paciente X:\nfecha Y. Valide e introduzca en sistema."
+        admin -> agendas : Introduce nueva cita\nen el sistema del hospital
+
+    else Paciente RECHAZA la intervencion
+        ra -> medico : Email automatico:\n"Paciente X rechaza intervencion.\nAccion requerida."
+        medico -> rcle : Actualiza estado del paciente\nen RCLE (PASIVO / baja)
+    end
+end
+
+== Diagrama de Componentes (Hexagonal) ==
+
+note over ao, ra #E3F2FD
+AGI-COOP Service
+-----------------------------------------
+[ Puerto Entrada ]    [ Puerto Salida ]
+  CSV/Excel RCLE     -->  JSON propuesta
+  CSV Agendas        -->  CSV asignacion
+                     -->  Email admin
+                     -->  SMS paciente
+                     -->  WhatsApp paciente
+
+[ AgendaOptimizer ] - optimizacion citas
+[ NotificationAgent ] - recordatorios
+[ ReplanificationAgent ] - cancelaciones
+-----------------------------------------
+SIN acceso a APIs internas del hospital
+SIN base de datos propia en v1
+end note
+
+@enduml
